@@ -1,6 +1,20 @@
-version: '3.8'
-
 services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik
   db:
     image: postgres:15-alpine
     container_name: todo-db
@@ -17,12 +31,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
   app:
     build: .
     container_name: todo-app
-    ports:
-      - "3000:3000"
     environment:
       DATABASE_URL: postgres://todouser:todopass@db:5432/tododb
     depends_on:
@@ -30,6 +41,16 @@ services:
         condition: service_healthy
     volumes:
       - ./server.js:/app/server.js
-
+    networks:
+      - traefik
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.todo-app.rule=Host(`docker-compose-sample.navegante.app`)"
+      - "traefik.http.routers.todo-app.entrypoints=web"
+      - "traefik.http.services.todo-app.loadbalancer.server.port=3000"
+networks:
+  traefik:
+    name: traefik
 volumes:
   postgres-data:
